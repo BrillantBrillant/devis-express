@@ -43,7 +43,7 @@ td.t{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;paddi
 .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
 button.b{font:500 15px "IBM Plex Sans",sans-serif;border-radius:6px;border:1px solid var(--pipe);background:transparent;color:var(--pipe);padding:9px 14px;cursor:pointer}
 button.b.main{background:var(--pipe);color:var(--pipe-ink)}
-.rel{margin-top:28px}
+.rel{margin-top:28px}#hist td,#hist th{padding:6px 4px}#hist select{width:auto}#leg{margin-top:4px;font-size:14px}label.mention{display:block;margin-top:14px}
 .rel h2{font:600 22px/1.2 "IBM Plex Sans Condensed","Arial Narrow",sans-serif;margin:0 0 4px}
 .rcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-top:12px}
 .rcard{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px}
@@ -51,7 +51,7 @@ button.b.main{background:var(--pipe);color:var(--pipe-ink)}
 .rcard textarea{min-height:170px;font-size:14px;resize:vertical}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
 .toast.on{opacity:1}
-@media print{body{background:#fff;color:#000}.panel,.btns,.rel,.warn,.del,.toast{display:none!important}.grid{display:block}.sheet{border:0;padding:0}td input{border:0}}
+@media print{body{background:#fff;color:#000}.panel,.btns,.rel,.warn,.del,.toast{display:none!important}.grid{display:block}.sheet{border:0;padding:0}td input,#leg{border:0}}
 @media (prefers-reduced-motion:reduce){.toast{transition:none}}
 </style>
 </head>
@@ -65,8 +65,12 @@ button.b.main{background:var(--pipe);color:var(--pipe-ink)}
     <section class="panel" aria-label="Informations du chantier">
       <label for="ent">Votre entreprise</label>
       <input id="ent" value="Martin Énergies">
+      <label for="sir">SIRET</label><input id="sir" placeholder="123 456 789 00012">
+      <label for="coo">Adresse, téléphone, mail</label><input id="coo" placeholder="3 rue X, 13001 Marseille · 06 00 00 00 00">
+      <label for="logo">Logo (image, 300 Ko max)</label><input id="logo" type="file" accept="image/*">
       <label for="cli">Nom du client</label>
       <input id="cli" value="M. Durand">
+      <label for="cem">Mail du client</label><input id="cem" type="email">
       <label for="adr">Adresse du chantier</label>
       <input id="adr" placeholder="12 rue des Lilas, 13008 Marseille">
       <label for="typ">Installation</label>
@@ -83,6 +87,7 @@ button.b.main{background:var(--pipe);color:var(--pipe-ink)}
     </section>
 
     <section class="sheet" aria-label="Devis">
+      <img id="shLogo" alt="Logo" hidden style="max-height:56px;margin-bottom:8px">
       <h2 id="shTitle">Devis</h2>
       <div class="meta"><span id="shNum"></span><span id="shCli"></span></div>
       <div class="tw">
@@ -96,15 +101,20 @@ button.b.main{background:var(--pipe);color:var(--pipe-ink)}
         <div><span id="tvaL">TVA</span><span id="tTVA"></span></div>
         <div class="ttc"><span>Total TTC</span><span id="tTTC"></span></div>
       </div>
+      <label for="leg" class="mention">Mentions légales (modifiables, à faire valider)</label><textarea id="leg" rows="5"></textarea>
       <p class="mention" id="mention"></p>
       <div class="btns">
         <button class="b" id="add" type="button">Ajouter une ligne</button>
         <button class="b main" id="copy" type="button">Copier le devis</button>
         <button class="b" id="print" type="button">Imprimer / PDF</button>
+        <button class="b" id="mail" type="button">Envoyer par mail</button>
+        <button class="b" id="saveP" type="button">Enregistrer mes tarifs</button>
+        <button class="b main" id="saveQ" type="button">Enregistrer le devis</button>
       </div>
     </section>
   </div>
 
+  <section class="rel" aria-label="Mes devis"><h2>Mes devis</h2><p class="sub" id="dash"></p><div class="tw"><table id="hist"></table></div></section>
   <section class="rel" aria-label="Relances">
     <h2>Relances automatiques</h2>
     <p class="sub">Trois messages prêts à envoyer si le client ne répond pas. Ils se mettent à jour avec le devis.</p>
@@ -120,6 +130,9 @@ const PRESETS={
  chaud:{n:"Chaudière gaz à condensation",l:[["Chaudière gaz à condensation",1,2400],["Pose et raccordements",1,1200],["Conduit d’évacuation des fumées",1,450],["Dépose ancienne chaudière",1,300]]},
  cet:{n:"Chauffe-eau thermodynamique",l:[["Chauffe-eau thermodynamique 200 L",1,2100],["Pose et raccordements",1,650],["Raccordement électrique",1,250]]},
  pc:{n:"Plancher chauffant hydraulique",l:[["Plancher chauffant (par m²)","S",65],["Collecteur et régulation",1,550],["Mise en service",1,400]]},
+ des:{n:"Désembouage et équilibrage du circuit",l:[["Désembouage complet du réseau",1,650],["Filtre magnétique",1,180],["Équilibrage des radiateurs",1,250]]},
+ vmc:{n:"VMC double flux",l:[["VMC double flux",1,2400],["Gaines et bouches",1,1100],["Pose et mise en service",1,900]]},
+ sdb:{n:"Remplacement baignoire par douche",l:[["Dépose baignoire",1,350],["Receveur et paroi de douche",1,1200],["Robinetterie thermostatique",1,280],["Plomberie et pose",1,900]]},
  pv:{n:"Panneaux photovoltaïques 3 kWc",l:[["Kit photovoltaïque 3 kWc",1,4800],["Pose et mise en service",1,1500],["Démarches de raccordement",1,400]]}
 };
 const $=id=>document.getElementById(id);
@@ -127,7 +140,13 @@ const eur=n=>new Intl.NumberFormat("fr-FR",{style:"currency",currency:"EUR"}).fo
 const today=new Date();
 const fmtD=d=>d.toLocaleDateString("fr-FR",{day:"numeric",month:"long",year:"numeric"});
 const valid=new Date(today.getTime()+30*864e5);
-let lines=[];
+let lines=[],store={};
+const LS="devisExpress.v1";
+try{store=JSON.parse(localStorage.getItem(LS))||{}}catch(e){store={}}
+store.prices=store.prices||{};store.hist=store.hist||[];store.co=store.co||{};store.n=store.n||0;
+const save=()=>{try{localStorage.setItem(LS,JSON.stringify(store))}catch(e){toast("Sauvegarde impossible sur ce navigateur")}};
+const num=()=>"DEV-"+today.getFullYear()+"-"+String(store.n+1).padStart(3,"0");
+const LEG="Devis gratuit, valable 30 jours. Acompte et échéancier de paiement : à préciser. Assurance décennale : [assureur et n° de contrat]. Garanties légales applicables. En cas de vente hors établissement, le client dispose d’un délai de rétractation de 14 jours. Mentions à faire valider par l’installateur.";
 
 Object.entries(PRESETS).forEach(([k,v])=>{const o=document.createElement("option");o.value=k;o.textContent=v.n;$("typ").appendChild(o)});
 
@@ -135,9 +154,10 @@ function load(){
   const p=PRESETS[$("typ").value];
   const isPC=$("typ").value==="pc";
   $("surfBox").hidden=!isPC;
-  lines=p.l.map(([l,q,pr])=>({l,q:q==="S"?(+$("surf").value||1):q,p:pr}));
-  if($("o1").checked) lines.push({l:"Contrat d’entretien annuel (1re année)",q:1,p:180});
-  if($("o2").checked) lines.push({l:"Visite technique préalable",q:1,p:90});
+  const sv=store.prices[$("typ").value];
+  lines=(sv||p.l).map(([l,q,pr])=>({l,q:q==="S"?(+$("surf").value||1):q,p:pr}));
+  if($("o1").checked) lines.push({l:"Contrat d’entretien annuel (1re année)",q:1,p:180,o:1});
+  if($("o2").checked) lines.push({l:"Visite technique préalable",q:1,p:90,o:1});
   drawRows();
 }
 function drawRows(){
@@ -170,7 +190,7 @@ function update(){
   $("tTTC").textContent=eur(t.ttc);
   const ent=$("ent").value||"Votre entreprise",cli=$("cli").value||"Client";
   $("shTitle").textContent="Devis – "+PRESETS[$("typ").value].n;
-  $("shNum").textContent=ent+" · "+fmtD(today);
+  $("shNum").textContent=ent+($("sir").value?" · SIRET "+$("sir").value:"")+($("coo").value?" · "+$("coo").value:"")+" · "+fmtD(today)+" · "+num();
   $("shCli").textContent=cli+($("adr").value?" · "+$("adr").value:"");
   $("mention").textContent="Devis valable jusqu’au "+fmtD(valid)+". Brouillon à relire avant envoi : prix, TVA et aides à confirmer par l’installateur.";
   drawRelances(t,ent,cli);
@@ -198,7 +218,7 @@ function drawRelances(t,ent,cli){
 function quoteText(){
   const t=totals();
   const rows=lines.map(l=>"- "+l.l+" : "+l.q+" × "+eur(l.p)+" = "+eur(l.q*l.p)).join("\n");
-  return $("shTitle").textContent+"\n"+$("shNum").textContent+"\nClient : "+$("cli").value+($("adr").value?"\nChantier : "+$("adr").value:"")+"\n\n"+rows+"\n\nTotal HT : "+eur(t.ht)+"\nTVA "+t.r+" % : "+eur(t.tva)+"\nTotal TTC : "+eur(t.ttc)+"\n\n"+$("mention").textContent;
+  return $("shTitle").textContent+"\n"+$("shNum").textContent+"\nClient : "+$("cli").value+($("adr").value?"\nChantier : "+$("adr").value:"")+"\n\n"+rows+"\n\nTotal HT : "+eur(t.ht)+"\nTVA "+t.r+" % : "+eur(t.tva)+"\nTotal TTC : "+eur(t.ttc)+"\n\n"+$("leg").value+"\n"+$("mention").textContent;
 }
 function toast(m){const e=$("toast");e.textContent=m;e.classList.add("on");setTimeout(()=>e.classList.remove("on"),1800)}
 function copy(txt){
@@ -218,6 +238,20 @@ $("tva").onchange=update;
 $("add").onclick=()=>{lines.push({l:"Nouvelle ligne",q:1,p:0});drawRows()};
 $("copy").onclick=()=>copy(quoteText());
 $("print").onclick=()=>{try{window.print()}catch(e){toast("Impression indisponible ici : utilisez « Copier le devis »")}};
+$("mail").onclick=()=>{try{location.href="mailto:"+encodeURIComponent($("cem").value)+"?subject="+encodeURIComponent("Devis "+PRESETS[$("typ").value].n)+"&body="+encodeURIComponent(quoteText())}catch(e){toast("Messagerie indisponible : utilisez « Copier le devis »")}};
+$("saveP").onclick=()=>{const k=$("typ").value;store.prices[k]=lines.filter(x=>!x.o).map((x,i)=>[x.l,(k==="pc"&&i===0)?"S":x.q,x.p]);save();toast("Tarifs enregistrés pour cette installation")};
+$("saveQ").onclick=()=>{const t=totals();const n=num();store.n++;store.hist.unshift({n,d:fmtD(today),c:$("cli").value||"Client",i:PRESETS[$("typ").value].n,t:t.ttc,s:"Brouillon"});save();histDraw();update();toast("Devis enregistré")};
+function histDraw(){
+ const h=store.hist,s=h.filter(x=>x.s==="Signé"),ca=s.reduce((a,x)=>a+x.t,0);
+ $("dash").textContent=h.length?h.length+" devis · "+s.length+" signé(s) ("+Math.round(100*s.length/h.length)+" %) · "+eur(ca)+" TTC signés":"Aucun devis enregistré pour l’instant.";
+ const tb=$("hist");tb.innerHTML="<tr><th>N°</th><th>Client</th><th>Installation</th><th>TTC</th><th>Statut</th></tr>";
+ h.forEach(x=>{const tr=document.createElement("tr");tr.innerHTML="<td></td><td></td><td></td><td></td><td><select></select></td>";const c=tr.children;c[0].textContent=x.n;c[1].textContent=x.c;c[2].textContent=x.i;c[3].textContent=eur(x.t);const sel=c[4].firstChild;["Brouillon","Envoyé","Signé","Refusé"].forEach(v=>{const o=document.createElement("option");o.textContent=v;sel.appendChild(o)});sel.value=x.s;sel.onchange=()=>{x.s=sel.value;save();histDraw()};tb.appendChild(tr)});
+}
+["ent","sir","coo","leg"].forEach(id=>{if(store.co[id]!==undefined)$(id).value=store.co[id];$(id).addEventListener("input",()=>{store.co[id]=$(id).value;save()})});
+if(!$("leg").value)$("leg").value=LEG;
+function logo(){const s=store.co.logo;$("shLogo").hidden=!s;if(s)$("shLogo").src=s}
+$("logo").onchange=e=>{const f=e.target.files[0];if(!f)return;if(f.size>300000){toast("Image trop lourde (300 Ko max)");return}const r=new FileReader();r.onload=()=>{store.co.logo=r.result;save();logo()};r.readAsDataURL(f)};
+histDraw();logo();
 load();
 </script>
 </body>
